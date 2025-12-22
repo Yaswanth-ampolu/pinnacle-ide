@@ -297,7 +297,29 @@ class PinnacleSettingsService extends Disposable implements IPinnacleSettingsSer
 			return defaultState()
 		}
 		try {
-			const state = JSON.parse(stateStr)
+			const state = JSON.parse(stateStr) as PinnacleSettingsState
+
+			// Decrypt any stored API keys before using them in memory.
+			// We always store encrypted values (see setSettingOfProvider),
+			// but the rest of the app expects plaintext at runtime.
+			for (const providerName of providerNames) {
+				const settingsAtProvider = state.settingsOfProvider?.[providerName] as any;
+				if (!settingsAtProvider) {
+					continue;
+				}
+
+				const apiKey = settingsAtProvider.apiKey;
+				if (typeof apiKey === 'string' && apiKey.length > 0) {
+					try {
+						const decrypted = await this._encryptionService.decrypt(apiKey);
+						settingsAtProvider.apiKey = decrypted;
+					} catch {
+						// If decryption fails, assume the value is already plaintext
+						// and leave it as-is to avoid breaking existing configs.
+					}
+				}
+			}
+
 			return state
 		} catch (e) {
 			console.error('Error parsing state', e)

@@ -404,6 +404,26 @@ export const reParsedToolXMLString = (toolName: string, toolParams: any) => {
 }
 
 export const chat_systemMessage = ({ workspaceFolders, openedURIs, activeURI, persistentTerminalIDs, directoryStr, chatMode: mode, mcpTools, includeXMLToolDefinitions }: { workspaceFolders: string[], directoryStr: string, openedURIs: string[], activeURI: string | undefined, persistentTerminalIDs: string[], chatMode: any, mcpTools: any[] | undefined, includeXMLToolDefinitions: boolean }) => {
+    // `process` is not available in the sandboxed renderer, so we must guard access
+    // and fall back to a reasonable string to avoid runtime ReferenceErrors.
+    let platform = 'browser';
+    try {
+        if (typeof process !== 'undefined' && typeof (process as any).platform === 'string') {
+            platform = (process as any).platform;
+        } else if (typeof navigator !== 'undefined' && navigator.userAgent) {
+            const ua = navigator.userAgent.toLowerCase();
+            if (ua.includes('win')) {
+                platform = 'win32';
+            } else if (ua.includes('mac')) {
+                platform = 'darwin';
+            } else if (ua.includes('linux')) {
+                platform = 'linux';
+            }
+        }
+    } catch {
+        // ignore and keep default 'browser'
+    }
+
     const header = (`You are an expert coding ${mode === 'agent' ? 'agent' : 'assistant'} whose job is \
 ${mode === 'agent' ? `to help the user develop, run, and make changes to their codebase.`
             : mode === 'gather' ? `to search, understand, and reference files in the user's codebase.`
@@ -414,7 +434,7 @@ Please assist the user with their query.`)
 
     const sysInfo = (`Here is the user's system information:
 <system_info>
-- Operating System: ${process.platform}
+- Operating System: ${platform}
 
 - The user's workspace contains these folders:
 ${workspaceFolders.join('\n') || 'NO FOLDERS OPEN'}
